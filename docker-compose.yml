@@ -14,6 +14,8 @@ services:
       - POSTGRES_DB=${DB_DATABASE}
     volumes:
       - "db_data:/var/lib/postgresql/data"
+    ports:
+      - "${DB_PORT}:5432"
 
 volumes:
   db_data:

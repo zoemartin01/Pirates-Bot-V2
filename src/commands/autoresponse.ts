@@ -8,9 +8,8 @@ import {
   PermissionFlagsBits,
   SlashCommandBuilder,
 } from "discord.js";
-import { DeepPartial } from "typeorm";
-import { AppDataSource } from "../data-source";
-import { AutoResponse } from "../entity/autoresponse";
+import { prisma } from "../db";
+import { AutoresponseTriggerType } from "@prisma/client";
 
 const data = new SlashCommandBuilder()
   .setName("ar")
@@ -40,11 +39,11 @@ const data = new SlashCommandBuilder()
           .setDescription("The trigger type")
           .setRequired(true)
           .addChoices(
-            { name: "Strict", value: "strict_contains" },
-            { name: "Exact", value: "exact" },
-            { name: "Contains", value: "contains" },
-            { name: "Starts With", value: "starts_with" },
-            { name: "Ends With", value: "ends_with" }
+            { name: "Strict", value: "STRICT_CONTAINS" },
+            { name: "Exact", value: "EXACT" },
+            { name: "Contains", value: "CONTAINS" },
+            { name: "Starts With", value: "STARTS_WITH" },
+            { name: "Ends With", value: "ENDS_WITH" }
           )
       )
   )
@@ -67,10 +66,9 @@ const data = new SlashCommandBuilder()
   );
 
 const list = async (interaction: ChatInputCommandInteraction<CacheType>) => {
-  const repository = AppDataSource.getRepository(AutoResponse);
   const guild = interaction.guildId!;
 
-  const responses = await repository.findBy({ guild });
+  const responses = await prisma.autoresponse.findMany({ where: { guild } });
   const embed = new EmbedBuilder()
     .setTitle("AutoResponse List")
     .setDescription(
@@ -90,18 +88,21 @@ const list = async (interaction: ChatInputCommandInteraction<CacheType>) => {
 };
 
 const add = async (interaction: ChatInputCommandInteraction<CacheType>) => {
-  const repository = AppDataSource.getRepository(AutoResponse);
-
   const response = interaction.options.getString("response", true);
   const trigger = interaction.options.getString("trigger", true);
-  const triggerType = interaction.options.getString("type", true);
+  const triggerType = interaction.options.getString(
+    "type",
+    true
+  ) as AutoresponseTriggerType;
   const guild = interaction.guildId!;
 
-  repository.save(<DeepPartial<AutoResponse>>{
-    response,
-    trigger,
-    triggerType,
-    guild,
+  await prisma.autoresponse.create({
+    data: {
+      response,
+      trigger,
+      triggerType,
+      guild,
+    },
   });
 
   await interaction.reply({
@@ -112,11 +113,10 @@ const add = async (interaction: ChatInputCommandInteraction<CacheType>) => {
 
 const remove = async (interaction: Interaction<CacheType>) => {
   if (interaction.type === InteractionType.ApplicationCommandAutocomplete) {
-    const repository = AppDataSource.getRepository(AutoResponse);
     const guild = interaction.guildId!;
 
     const focusedValue = interaction.options.getFocused();
-    const responses = await repository.findBy({ guild });
+    const responses = await prisma.autoresponse.findMany({ where: { guild } });
     const filtered = responses.filter((response) =>
       response.trigger.startsWith(focusedValue)
     );
@@ -127,16 +127,17 @@ const remove = async (interaction: Interaction<CacheType>) => {
       }))
     );
   } else if (interaction.isChatInputCommand()) {
-    const repository = AppDataSource.getRepository(AutoResponse);
     const guild = interaction.guildId!;
     const trigger = interaction.options.getString("trigger", true);
 
-    const entry = await repository.findOneBy({ guild, trigger });
+    const entry = await prisma.autoresponse.findFirst({
+      where: { guild, trigger },
+    });
 
     if (!entry) {
       await interaction.reply({ content: "No entry found!", ephemeral: true });
     } else {
-      await repository.remove(entry);
+      await prisma.autoresponse.delete({ where: { id: entry.id } });
       await interaction.reply({
         content: `Removed Trigger \`${trigger}\`!`,
         ephemeral: true,
@@ -164,12 +165,11 @@ const autocomplete = async (interaction: Interaction<CacheType>) => {
 };
 
 const messageHandler = async (message: Message<boolean>) => {
-  const repository = AppDataSource.getRepository(AutoResponse);
   const guild = message.guildId!;
 
-  const responses = await repository.findBy({ guild });
+  const responses = await prisma.autoresponse.findMany({ where: { guild } });
   const filtered = responses.filter((response) => {
-    if (response.triggerType === "strict_contains") {
+    if (response.triggerType === "STRICT_CONTAINS") {
       return message.content.match(
         new RegExp(
           "[\\S\\s]*(?<!\\S)" +
@@ -178,17 +178,17 @@ const messageHandler = async (message: Message<boolean>) => {
           "gi"
         )
       );
-    } else if (response.triggerType === "exact") {
+    } else if (response.triggerType === "EXACT") {
       return response.trigger.toLowerCase() === message.content.toLowerCase();
-    } else if (response.triggerType === "contains") {
+    } else if (response.triggerType === "CONTAINS") {
       return message.content
         .toLowerCase()
         .includes(response.trigger.toLowerCase());
-    } else if (response.triggerType === "starts_with") {
+    } else if (response.triggerType === "STARTS_WITH") {
       return message.content
         .toLowerCase()
         .startsWith(response.trigger.toLowerCase());
-    } else if (response.triggerType === "ends_with") {
+    } else if (response.triggerType === "ENDS_WITH") {
       return message.content
         .toLowerCase()
         .endsWith(response.trigger.toLowerCase());

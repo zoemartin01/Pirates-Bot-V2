@@ -1,0 +1,26 @@
+generator client {
+    provider = "prisma-client-js"
+}
+
+datasource db {
+    provider = "postgresql"
+    url      = env("DATABASE_URL")
+}
+
+model Autoresponse {
+    id          String                  @id @default(uuid())
+    guild       String
+    response    String
+    trigger     String
+    triggerType AutoresponseTriggerType
+
+    @@map("autoresponses")
+}
+
+enum AutoresponseTriggerType {
+    EXACT
+    CONTAINS
+    STARTS_WITH
+    ENDS_WITH
+    STRICT_CONTAINS
+}

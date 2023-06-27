@@ -1,6 +1,5 @@
 import { Client, GatewayIntentBits } from "discord.js";
 import "dotenv/config";
-import "reflect-metadata";
 import * as ping from "./commands/ping";
 import * as autoresponse from "./commands/autoresponse";
 const client = new Client({

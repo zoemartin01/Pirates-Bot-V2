@@ -1,0 +1,4 @@
+version: "3.9"
+services:
+  bot:
+    command: bash -c "npx -y prisma migrate deploy && npx -y ts-node src/reload_commands.ts"
